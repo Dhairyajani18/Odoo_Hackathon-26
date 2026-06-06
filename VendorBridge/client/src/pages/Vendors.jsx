@@ -49,44 +49,44 @@ const Vendors = () => {
   const columns = [
     {
       label: "Vendor Name",
-      key: "name",
+      key: "company_name",
       render: (row) => (
         <div>
-          <p className="font-semibold text-slate-800">{row.name}</p>
+          <p className="font-semibold text-slate-800">{row.company_name}</p>
           <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400 font-mono font-semibold">
             <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{row.category}</span>
-            <span>{row.id}</span>
+            <span>VND-{row.id}</span>
           </div>
         </div>
       )
     },
     {
       label: "Contact Person",
-      key: "contactPerson",
+      key: "contact_person",
       render: (row) => (
         <div>
-          <p className="text-slate-700 font-medium">{row.contactPerson}</p>
+          <p className="text-slate-700 font-medium">{row.contact_person}</p>
           <p className="text-xs text-slate-450">{row.email}</p>
         </div>
       )
     },
     {
       label: "GST Registry",
-      key: "gst",
+      key: "gst_number",
       render: (row) => (
         <div className="flex items-center gap-1">
-          <span className="font-mono text-xs text-violet-700 font-semibold">{row.gst}</span>
+          <span className="font-mono text-xs text-violet-700 font-semibold">{row.gst_number}</span>
           <ShieldCheck size={12} className="text-emerald-600" title="Verified GST" />
         </div>
       )
     },
     {
-      label: "Score Rating",
-      key: "rating",
+      label: "Phone",
+      key: "phone",
       render: (row) => (
         <div className="flex items-center gap-1">
-          <Star size={14} className="fill-violet-500 text-violet-500" />
-          <span className="font-mono font-bold text-slate-700">{row.rating.toFixed(1)}</span>
+          <Phone size={14} className="text-slate-500" />
+          <span className="font-mono text-xs text-slate-700">{row.phone}</span>
         </div>
       )
     },
@@ -96,7 +96,7 @@ const Vendors = () => {
       render: (row) => (
         <span
           className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
-            row.status === 'Active'
+            row.status === 'active'
               ? 'bg-emerald-50 text-emerald-700 bg-opacity-10 border border-emerald-200/50'
               : 'bg-violet-500 text-violet-700 bg-opacity-10 border border-violet-200/50'
           }`}

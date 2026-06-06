@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
+import { vendorAPI, rfqAPI, quotationAPI, poAPI, invoiceAPI } from '../api/api';
 import {
   initialVendors,
   initialRFQs,
@@ -22,36 +23,21 @@ export const AppProvider = ({ children }) => {
     };
   });
 
-  // ERP Database States
-  const [vendors, setVendors] = useState(() => {
-    const saved = localStorage.getItem('vb_vendors');
-    return saved ? JSON.parse(saved) : initialVendors;
-  });
-
-  const [rfqs, setRfqs] = useState(() => {
-    const saved = localStorage.getItem('vb_rfqs');
-    return saved ? JSON.parse(saved) : initialRFQs;
-  });
-
-  const [quotations, setQuotations] = useState(() => {
-    const saved = localStorage.getItem('vb_quotations');
-    return saved ? JSON.parse(saved) : initialQuotations;
-  });
-
-  const [purchaseOrders, setPurchaseOrders] = useState(() => {
-    const saved = localStorage.getItem('vb_pos');
-    return saved ? JSON.parse(saved) : initialPOs;
-  });
-
-  const [invoices, setInvoices] = useState(() => {
-    const saved = localStorage.getItem('vb_invoices');
-    return saved ? JSON.parse(saved) : initialInvoices;
-  });
-
+  // ERP Database States (using API)
+  const [vendors, setVendors] = useState([]);
+  const [rfqs, setRfqs] = useState([]);
+  const [quotations, setQuotations] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  
   const [logs, setLogs] = useState(() => {
     const saved = localStorage.getItem('vb_logs');
     return saved ? JSON.parse(saved) : initialLogs;
   });
+
+  // Loading states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Notifications state
   const [notifications, setNotifications] = useState([
@@ -60,34 +46,36 @@ export const AppProvider = ({ children }) => {
     { id: 3, text: "PO-2026-001 has been sent to vendor.", read: true, time: "1 day ago" }
   ]);
 
-  // Synchronize with LocalStorage
+  // Fetch all data from APIs on component mount
   useEffect(() => {
-    localStorage.setItem('vb_user', JSON.stringify(currentUser));
-  }, [currentUser]);
+    const fetchAllData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const [vendorsRes, rfqsRes, quotationsRes, posRes, invoicesRes] = await Promise.all([
+          vendorAPI.getAll().catch(err => ({ data: [] })),
+          rfqAPI.getAll().catch(err => ({ data: [] })),
+          quotationAPI.getAll().catch(err => ({ data: [] })),
+          poAPI.getAll().catch(err => ({ data: [] })),
+          invoiceAPI.getAll().catch(err => ({ data: [] }))
+        ]);
 
-  useEffect(() => {
-    localStorage.setItem('vb_vendors', JSON.stringify(vendors));
-  }, [vendors]);
+        setVendors(vendorsRes.data || []);
+        setRfqs(rfqsRes.data || []);
+        setQuotations(quotationsRes.data || []);
+        setPurchaseOrders(posRes.data || []);
+        setInvoices(invoicesRes.data || []);
+      } catch (err) {
+        setError("Failed to load data from backend");
+        console.error("Error fetching data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  useEffect(() => {
-    localStorage.setItem('vb_rfqs', JSON.stringify(rfqs));
-  }, [rfqs]);
-
-  useEffect(() => {
-    localStorage.setItem('vb_quotations', JSON.stringify(quotations));
-  }, [quotations]);
-
-  useEffect(() => {
-    localStorage.setItem('vb_pos', JSON.stringify(purchaseOrders));
-  }, [purchaseOrders]);
-
-  useEffect(() => {
-    localStorage.setItem('vb_invoices', JSON.stringify(invoices));
-  }, [invoices]);
-
-  useEffect(() => {
-    localStorage.setItem('vb_logs', JSON.stringify(logs));
-  }, [logs]);
+    fetchAllData();
+  }, []);
 
   // Actions
   const addLog = (actionText) => {
@@ -154,151 +142,207 @@ export const AppProvider = ({ children }) => {
     addLog(`Switched simulation role to ${role}`);
   };
 
-  const addVendor = (vendor) => {
-    const newVendor = {
-      ...vendor,
-      id: `VND-${String(vendors.length + 1).padStart(3, '0')}`,
-      rating: 5.0,
-      status: "Active"
-    };
-    setVendors(prev => [...prev, newVendor]);
-    addLog(`Registered vendor ${newVendor.name}`);
-    
-    // Add Notification
-    setNotifications(prev => [
-      { id: Date.now(), text: `New vendor registered: ${newVendor.name}`, read: false, time: "Just now" },
-      ...prev
-    ]);
+  const addVendor = async (vendor) => {
+    try {
+      const payload = {
+        company_name: vendor.name,
+        contact_person: vendor.contactPerson,
+        email: vendor.email,
+        phone: vendor.phone,
+        gst_number: vendor.gst,
+        address: vendor.address || "N/A",
+        category: vendor.category,
+        status: "active"
+      };
+
+      const response = await vendorAPI.create(payload);
+      const newVendor = response.data;
+      
+      setVendors(prev => [...prev, newVendor]);
+      addLog(`Registered vendor ${newVendor.company_name}`);
+      
+      setNotifications(prev => [
+        { id: Date.now(), text: `New vendor registered: ${newVendor.company_name}`, read: false, time: "Just now" },
+        ...prev
+      ]);
+    } catch (err) {
+      console.error("Error adding vendor:", err);
+      addLog(`Failed to register vendor: ${err.message}`);
+    }
   };
 
-  const addRFQ = (rfq) => {
-    const newRFQ = {
-      ...rfq,
-      id: `RFQ-2026-${String(rfqs.length + 1).padStart(3, '0')}`,
-      status: "Published",
-      createdAt: new Date().toISOString().split('T')[0]
-    };
-    setRfqs(prev => [newRFQ, ...prev]);
-    addLog(`Created new RFQ: ${newRFQ.title}`);
+  const addRFQ = async (rfq) => {
+    try {
+      const payload = {
+        ...rfq,
+        status: "Published",
+        created_at: new Date().toISOString()
+      };
 
-    // Notify appropriate vendors
-    setNotifications(prev => [
-      { id: Date.now(), text: `New RFQ Published: ${newRFQ.title}`, read: false, time: "Just now" },
-      ...prev
-    ]);
+      const response = await rfqAPI.create(payload);
+      const newRFQ = response.data;
+      
+      setRfqs(prev => [newRFQ, ...prev]);
+      addLog(`Created new RFQ: ${newRFQ.title}`);
+
+      setNotifications(prev => [
+        { id: Date.now(), text: `New RFQ Published: ${newRFQ.title}`, read: false, time: "Just now" },
+        ...prev
+      ]);
+    } catch (err) {
+      console.error("Error adding RFQ:", err);
+      addLog(`Failed to create RFQ: ${err.message}`);
+    }
   };
 
-  const addQuotation = (quote) => {
-    const newQuote = {
-      ...quote,
-      id: `QTN-2026-${String(quotations.length + 1).padStart(3, '0')}`,
-      status: "Submitted",
-      submittedAt: new Date().toISOString().split('T')[0]
-    };
-    setQuotations(prev => [newQuote, ...prev]);
+  const addQuotation = async (quote) => {
+    try {
+      const payload = {
+        ...quote,
+        status: "Submitted",
+        submitted_at: new Date().toISOString()
+      };
 
-    // Update RFQ status to indicate bids have been received
-    setRfqs(prev => prev.map(r => r.id === quote.rfqId ? { ...r, status: "Bids Received" } : r));
-    addLog(`Vendor ${quote.vendorName} submitted quotation for ${quote.rfqId}`);
+      const response = await quotationAPI.create(payload);
+      const newQuote = response.data;
 
-    // Notify Procurement Officers
-    setNotifications(prev => [
-      { id: Date.now(), text: `Quotation received from ${quote.vendorName} for ${quote.rfqId}`, read: false, time: "Just now" },
-      ...prev
-    ]);
-  };
+      setQuotations(prev => [newQuote, ...prev]);
 
-  const approveQuotation = (quoteId, remarks) => {
-    // 1. Mark Quote as Approved
-    let approvedQuote = null;
-    setQuotations(prev => prev.map(q => {
-      if (q.id === quoteId) {
-        approvedQuote = { ...q, status: "Approved" };
-        return approvedQuote;
+      // Update RFQ status to indicate bids have been received
+      try {
+        await rfqAPI.update(quote.rfqId, { status: "Bids Received" });
+        setRfqs(prev => prev.map(r => r.id === quote.rfqId ? { ...r, status: "Bids Received" } : r));
+      } catch (err) {
+        console.error("Error updating RFQ status:", err);
       }
-      // Reject other quotes for the same RFQ
-      const matchingQuote = prev.find(x => x.id === quoteId);
-      if (matchingQuote && q.rfqId === matchingQuote.rfqId) {
-        return { ...q, status: "Rejected" };
-      }
-      return q;
-    }));
 
-    if (!approvedQuote) return;
+      addLog(`Vendor ${quote.vendorName} submitted quotation for ${quote.rfqId}`);
 
-    // 2. Update RFQ status to Completed
-    setRfqs(prev => prev.map(r => r.id === approvedQuote.rfqId ? { ...r, status: "Completed" } : r));
-
-    // 3. Auto-generate Purchase Order
-    const matchingRFQ = rfqs.find(r => r.id === approvedQuote.rfqId);
-    const poItems = matchingRFQ ? matchingRFQ.items.map(item => ({
-      name: item.name,
-      qty: item.qty,
-      unit: matchingRFQ.unit || "units",
-      price: approvedQuote.pricePerUnit
-    })) : [];
-
-    const newPO = {
-      id: `PO-2026-${String(purchaseOrders.length + 1).padStart(3, '0')}`,
-      rfqId: approvedQuote.rfqId,
-      quotationId: approvedQuote.id,
-      vendorId: approvedQuote.vendorId,
-      vendorName: approvedQuote.vendorName,
-      items: poItems,
-      subtotal: approvedQuote.totalPrice,
-      tax: Math.round(approvedQuote.totalPrice * 0.18), // 18% GST
-      total: Math.round(approvedQuote.totalPrice * 1.18),
-      status: "Sent",
-      createdAt: new Date().toISOString().split('T')[0]
-    };
-
-    setPurchaseOrders(prev => [...prev, newPO]);
-    addLog(`Approved Quotation ${quoteId} (RFQ: ${approvedQuote.rfqId}) - Generated ${newPO.id}`);
-
-    // 4. Generate Invoice (Mock status: Unpaid)
-    const newInvoice = {
-      id: `INV-2026-${String(invoices.length + 1).padStart(3, '0')}`,
-      poId: newPO.id,
-      vendorId: newPO.vendorId,
-      vendorName: newPO.vendorName,
-      items: newPO.items,
-      subtotal: newPO.subtotal,
-      tax: newPO.tax,
-      total: newPO.total,
-      status: "Unpaid",
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days due
-      createdAt: new Date().toISOString().split('T')[0]
-    };
-
-    setInvoices(prev => [...prev, newInvoice]);
-    addLog(`Auto-generated Invoice ${newInvoice.id} for ${newPO.id}`);
-
-    setNotifications(prev => [
-      { id: Date.now(), text: `Quotation Approved! ${newPO.id} & ${newInvoice.id} created.`, read: false, time: "Just now" },
-      ...prev
-    ]);
+      setNotifications(prev => [
+        { id: Date.now(), text: `Quotation received from ${quote.vendorName} for ${quote.rfqId}`, read: false, time: "Just now" },
+        ...prev
+      ]);
+    } catch (err) {
+      console.error("Error adding quotation:", err);
+      addLog(`Failed to submit quotation: ${err.message}`);
+    }
   };
 
-  const rejectQuotation = (quoteId, remarks) => {
-    setQuotations(prev => prev.map(q => q.id === quoteId ? { ...q, status: "Rejected" } : q));
-    addLog(`Rejected Quotation ${quoteId}. Remarks: ${remarks}`);
-    
-    setNotifications(prev => [
-      { id: Date.now(), text: `Quotation ${quoteId} was rejected by Manager.`, read: false, time: "Just now" },
-      ...prev
-    ]);
+  const approveQuotation = async (quoteId, remarks) => {
+    try {
+      // 1. Mark Quote as Approved
+      let approvedQuote = quotations.find(q => q.id === quoteId);
+      if (!approvedQuote) return;
+
+      await quotationAPI.update(quoteId, { status: "Approved" });
+      setQuotations(prev => prev.map(q => {
+        if (q.id === quoteId) {
+          return { ...q, status: "Approved" };
+        }
+        // Reject other quotes for the same RFQ
+        if (q.rfq_id === approvedQuote.rfq_id && q.id !== quoteId) {
+          quotationAPI.update(q.id, { status: "Rejected" }).catch(err => console.error(err));
+          return { ...q, status: "Rejected" };
+        }
+        return q;
+      }));
+
+      // 2. Update RFQ status to Completed
+      await rfqAPI.update(approvedQuote.rfq_id, { status: "Completed" });
+      setRfqs(prev => prev.map(r => r.id === approvedQuote.rfq_id ? { ...r, status: "Completed" } : r));
+
+      // 3. Auto-generate Purchase Order
+      const newPO = {
+        rfq_id: approvedQuote.rfq_id,
+        quotation_id: approvedQuote.id,
+        vendor_id: approvedQuote.vendor_id,
+        vendor_name: approvedQuote.vendor_name,
+        items: approvedQuote.items || [],
+        subtotal: approvedQuote.total_price,
+        tax: Math.round(approvedQuote.total_price * 0.18),
+        total: Math.round(approvedQuote.total_price * 1.18),
+        status: "Sent",
+        created_at: new Date().toISOString()
+      };
+
+      const poResponse = await poAPI.create(newPO);
+      setPurchaseOrders(prev => [...prev, poResponse.data]);
+
+      addLog(`Approved Quotation ${quoteId} (RFQ: ${approvedQuote.rfq_id}) - Generated PO`);
+
+      // 4. Generate Invoice
+      const newInvoice = {
+        po_id: poResponse.data.id,
+        vendor_id: poResponse.data.vendor_id,
+        vendor_name: poResponse.data.vendor_name,
+        items: poResponse.data.items,
+        subtotal: poResponse.data.subtotal,
+        tax: poResponse.data.tax,
+        total: poResponse.data.total,
+        status: "Unpaid",
+        due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        created_at: new Date().toISOString()
+      };
+
+      const invResponse = await invoiceAPI.create(newInvoice);
+      setInvoices(prev => [...prev, invResponse.data]);
+
+      addLog(`Auto-generated Invoice for ${poResponse.data.id}`);
+
+      setNotifications(prev => [
+        { id: Date.now(), text: `Quotation Approved! PO & Invoice created.`, read: false, time: "Just now" },
+        ...prev
+      ]);
+    } catch (err) {
+      console.error("Error approving quotation:", err);
+      addLog(`Failed to approve quotation: ${err.message}`);
+    }
   };
 
-  const payInvoice = (invoiceId) => {
-    setInvoices(prev => prev.map(inv => {
-      if (inv.id === invoiceId) {
-        // Find PO and update status to Completed
-        setPurchaseOrders(pos => pos.map(po => po.id === inv.poId ? { ...po, status: "Completed" } : po));
-        addLog(`Paid Invoice ${invoiceId}`);
-        return { ...inv, status: "Paid" };
+  const rejectQuotation = async (quoteId, remarks) => {
+    try {
+      await quotationAPI.update(quoteId, { status: "Rejected" });
+      setQuotations(prev => prev.map(q => q.id === quoteId ? { ...q, status: "Rejected" } : q));
+      addLog(`Rejected Quotation ${quoteId}. Remarks: ${remarks}`);
+      
+      setNotifications(prev => [
+        { id: Date.now(), text: `Quotation ${quoteId} was rejected by Manager.`, read: false, time: "Just now" },
+        ...prev
+      ]);
+    } catch (err) {
+      console.error("Error rejecting quotation:", err);
+      addLog(`Failed to reject quotation: ${err.message}`);
+    }
+  };
+
+  const payInvoice = async (invoiceId) => {
+    try {
+      const invoice = invoices.find(inv => inv.id === invoiceId);
+      if (!invoice) return;
+
+      await invoiceAPI.update(invoiceId, { status: "Paid" });
+      setInvoices(prev => prev.map(inv => {
+        if (inv.id === invoiceId) {
+          return { ...inv, status: "Paid" };
+        }
+        return inv;
+      }));
+
+      // Find and update PO status to Completed
+      if (invoice.po_id) {
+        await poAPI.update(invoice.po_id, { status: "Completed" });
+        setPurchaseOrders(pos => pos.map(po => po.id === invoice.po_id ? { ...po, status: "Completed" } : po));
       }
-      return inv;
-    }));
+
+      addLog(`Paid Invoice ${invoiceId}`);
+      setNotifications(prev => [
+        { id: Date.now(), text: `Invoice ${invoiceId} has been paid.`, read: false, time: "Just now" },
+        ...prev
+      ]);
+    } catch (err) {
+      console.error("Error paying invoice:", err);
+      addLog(`Failed to pay invoice: ${err.message}`);
+    }
   };
 
   const markAllNotificationsRead = () => {
@@ -315,6 +359,8 @@ export const AppProvider = ({ children }) => {
       invoices,
       logs,
       notifications,
+      loading,
+      error,
       login,
       signup,
       logout,

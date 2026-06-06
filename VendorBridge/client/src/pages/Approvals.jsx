@@ -14,15 +14,15 @@ const Approvals = () => {
 
   const activeRFQs = rfqs.filter(r => r.status === 'Bids Received' || r.status === 'Under Review' || r.status === 'Published');
   const currentRFQ = rfqs.find(r => r.id === selectedRFQId);
-  const currentQuotes = quotations.filter(q => q.rfqId === selectedRFQId);
+  const currentQuotes = quotations.filter(q => q.rfq_id === selectedRFQId);
 
   // Find lowest price and fastest delivery to highlight them
   const lowestPrice = currentQuotes.length > 0 
-    ? Math.min(...currentQuotes.map(q => q.totalPrice)) 
+    ? Math.min(...currentQuotes.map(q => q.total_price)) 
     : 0;
 
   const fastestDelivery = currentQuotes.length > 0 
-    ? Math.min(...currentQuotes.map(q => q.deliveryDays)) 
+    ? Math.min(...currentQuotes.map(q => q.delivery_days)) 
     : 0;
 
   const handleActionClick = (type, quoteId) => {
@@ -105,9 +105,9 @@ const Approvals = () => {
           {currentQuotes.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {currentQuotes.map((quote) => {
-                const isLowest = quote.totalPrice === lowestPrice;
-                const isFastest = quote.deliveryDays === fastestDelivery;
-                const vendorObj = vendors.find(v => v.id === quote.vendorId);
+                const isLowest = quote.total_price === lowestPrice;
+                const isFastest = quote.delivery_days === fastestDelivery;
+                const vendorObj = vendors.find(v => v.id === quote.vendor_id);
                 
                 return (
                   <div
@@ -127,13 +127,13 @@ const Approvals = () => {
 
                     {/* Header */}
                     <div className="border-b border-slate-100 pb-3 mb-3.5">
-                      <h4 className="font-semibold text-slate-800 text-sm truncate">{quote.vendorName}</h4>
+                      <h4 className="font-semibold text-slate-800 text-sm truncate">{quote.vendor_name}</h4>
                       <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-400 font-mono font-bold">
                         <span>{quote.id}</span>
                         {vendorObj && (
-                          <div className="flex items-center gap-0.5 text-violet-500">
-                            <Star size={10} className="fill-violet-500" />
-                            <span>{vendorObj.rating.toFixed(1)}</span>
+                          <div className="flex items-center gap-0.5 text-emerald-500">
+                            <ShieldCheck size={10} />
+                            <span>Verified</span>
                           </div>
                         )}
                       </div>
@@ -144,13 +144,13 @@ const Approvals = () => {
                       <div className="p-2.5 bg-slate-50 rounded border border-slate-200">
                         <span className="text-[9px] text-slate-400 font-semibold block">Total Bid Price</span>
                         <span className={`text-sm font-bold flex items-center gap-0.5 mt-0.5 ${isLowest ? 'text-emerald-600' : 'text-slate-700'}`}>
-                          <DollarSign size={14} /> {quote.totalPrice.toLocaleString()}
+                          <DollarSign size={14} /> {quote.total_price.toLocaleString()}
                         </span>
                       </div>
                       <div className="p-2.5 bg-slate-50 rounded border border-slate-200">
                         <span className="text-[9px] text-slate-400 font-semibold block">Delivery SLA</span>
                         <span className={`text-sm font-bold flex items-center gap-1 mt-0.5 ${isFastest ? 'text-indigo-600' : 'text-slate-700'}`}>
-                          <Clock size={14} /> {quote.deliveryDays} Days
+                          <Clock size={14} /> {quote.delivery_days} Days
                         </span>
                       </div>
                     </div>

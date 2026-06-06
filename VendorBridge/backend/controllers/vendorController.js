@@ -1,4 +1,3 @@
-// vendorController.js
 const pool = require("../config/db");
 
 const addVendor = async (req, res) => {
@@ -34,6 +33,7 @@ const addVendor = async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error(error);
+
     res.status(500).json({
       message: "Failed to add vendor",
     });
@@ -49,30 +49,24 @@ const getVendors = async (req, res) => {
     res.status(200).json(result.rows);
   } catch (error) {
     console.error(error);
+
     res.status(500).json({
       message: "Failed to fetch vendors",
     });
   }
 };
-
 const getVendorById = async (req, res) => {
   try {
-    // Fixed SQL Syntax: WHERE must come before ORDER BY
     const result = await pool.query(
-      "SELECT * FROM vendors WHERE id = $1 ORDER BY id DESC", 
-      [req.params.id]
+      "SELECT * FROM vendors ORDER BY id DESC where id = $1",[req.params.id]
     );
 
-    // It's good practice to return just the single object, not an array, for a "by ID" query
-    if (result.rows.length === 0) {
-        return res.status(404).json({ message: "Vendor not found" });
-    }
-
-    res.status(200).json(result.rows[0]); 
+    res.status(200).json(result.rows);
   } catch (error) {
     console.error(error);
+
     res.status(500).json({
-      message: "Failed to fetch vendor",
+      message: "Failed to fetch vendors",
     });
   }
 };
@@ -117,13 +111,10 @@ const updateVendor = async (req, res) => {
       ]
     );
 
-    if (result.rows.length === 0) {
-        return res.status(404).json({ message: "Vendor not found" });
-    }
-
     res.status(200).json(result.rows[0]);
   } catch (error) {
     console.error(error);
+
     res.status(500).json({
       message: "Failed to update vendor",
     });
@@ -134,33 +125,26 @@ const deleteVendor = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await pool.query(
-      "DELETE FROM vendors WHERE id = $1 RETURNING *",
+    await pool.query(
+      "DELETE FROM vendors WHERE id = $1",
       [id]
     );
-
-    if (result.rows.length === 0) {
-        return res.status(404).json({ message: "Vendor not found" });
-    }
 
     res.status(200).json({
       message: "Vendor deleted successfully",
     });
   } catch (error) {
     console.error(error);
+
     res.status(500).json({
       message: "Failed to delete vendor",
     });
   }
 };
 
-
-
-
 module.exports = {
   addVendor,
   getVendors,
-  getVendorById, // Added missing export!
   updateVendor,
   deleteVendor,
 };

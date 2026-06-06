@@ -6,29 +6,33 @@ const Reports = () => {
   const { purchaseOrders, vendors, rfqs } = useApp();
 
   // Spend calculations
-  const totalSpend = purchaseOrders.reduce((sum, po) => sum + po.total, 0);
+  const totalSpend = purchaseOrders.reduce((sum, po) => sum + (po.total || 0), 0);
   
   // Spend by Category
   const categorySpend = purchaseOrders.reduce((acc, po) => {
     // Find matching RFQ to get category
-    const rfq = rfqs.find(r => r.id === po.rfqId);
+    const rfq = rfqs.find(r => r.id === po.rfq_id);
     const cat = rfq ? rfq.category : "Hardware"; // Fallback default
-    acc[cat] = (acc[cat] || 0) + po.total;
+    acc[cat] = (acc[cat] || 0) + (po.total || 0);
     return acc;
   }, {});
 
   const maxCatSpend = Math.max(...Object.values(categorySpend), 1);
 
-  // Leaderboard sorting
+  // Leaderboard sorting - by number of purchases instead of rating
   const topVendors = [...vendors]
-    .sort((a, b) => b.rating - a.rating)
+    .map(v => ({
+      ...v,
+      purchaseCount: purchaseOrders.filter(po => po.vendor_id === v.id).length
+    }))
+    .sort((a, b) => b.purchaseCount - a.purchaseCount)
     .slice(0, 4);
 
   // Mock download CSV function
   const handleExportCSV = () => {
     const headers = "Purchase Order ID,RFQ Ref,Vendor,Date,Subtotal,Tax,Total,Status\n";
     const rows = purchaseOrders.map(po => (
-      `"${po.id}","${po.rfqId}","${po.vendorName}","${po.createdAt}",${po.subtotal},${po.tax},${po.total},"${po.status}"`
+      `"${po.id}","${po.rfq_id}","${po.vendor_name}","${po.created_at}",${po.subtotal},${po.tax},${po.total},"${po.status}"`
     )).join("\n");
     
     const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(headers + rows);
@@ -115,13 +119,13 @@ const Reports = () => {
                       #{idx + 1}
                     </span>
                     <div className="text-left overflow-hidden">
-                      <p className="text-xs font-semibold text-slate-200 truncate">{vendor.name}</p>
+                      <p className="text-xs font-semibold text-slate-200 truncate">{vendor.company_name}</p>
                       <span className="text-[9px] font-mono text-slate-500 uppercase">{vendor.category}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs font-mono">
-                    <Star size={12} className="fill-amber-400 text-amber-400" />
-                    <span className="font-bold text-slate-200">{vendor.rating.toFixed(1)}</span>
+                    <ShieldCheck size={12} className="text-emerald-400" />
+                    <span className="font-bold text-slate-200">{vendor.purchaseCount} orders</span>
                   </div>
                 </div>
               ))}
